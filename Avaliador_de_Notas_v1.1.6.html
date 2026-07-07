@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Avaliador de notas — Notas Iniciais vs Confirmações</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+  <style>
+  :root{
+    --primary:#2563eb;
+    --primaryHover:#1d4ed8;
+    --danger:#dc2626;
+    --bg:#f6f7fb;
+    --card:#ffffff;
+    --border:#e5e7eb;
+    --border2:#d1d5db;
+    --text:#111827;
+    --muted:#6b7280;
+    --radius:16px;
+    --shadow:0 10px 30px rgba(17,24,39,.08);
+    --focus:0 0 0 3px rgba(37,99,235,.18);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  html{background:var(--bg)}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font:14px/1.5 system-ui,-apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
+  }
+
+  header.container{ padding:22px 18px 10px; display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .title-wrap{ display:flex; flex-direction:column; gap:4px; }
+  h1{ font-size:20px; margin:0; letter-spacing:.2px }
+  .subtitle{ color:var(--muted); font-size:13px }
+
+  .tag{
+    padding:6px 10px;
+    background:var(--card);
+    color:#374151;
+    border-radius:999px;
+    border:1px solid var(--border);
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    box-shadow:0 6px 18px rgba(17,24,39,.06);
+    white-space:nowrap;
+  }
+  .tag .dot{ width:8px; height:8px; background:var(--primary); border-radius:50% }
+
+  .container{ max-width:1200px; margin:0 auto; padding:0 16px 36px }
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:16px;
+  }
+  .grid{ display:grid; gap:14px }
+  .grid.cols-2{ grid-template-columns:repeat(2,minmax(0,1fr)) }
+  @media(max-width:1000px){ .grid.cols-2{ grid-template-columns:1fr } }
+
+  label{ display:block; font-weight:650; margin-bottom:6px; color:var(--muted) }
+  .file{
+    border:1px dashed var(--border2);
+    border-radius:12px;
+    padding:12px;
+    display:flex;
+    gap:12px;
+    align-items:center;
+    background:#fbfcff;
+  }
+  input[type=file]{ max-width:100%; color:var(--muted) }
+
+  .row{ display:flex; flex-wrap:wrap; gap:10px; align-items:center }
+  select,input[type=text]{
+    background:var(--card);
+    border:1px solid var(--border2);
+    color:var(--text);
+    border-radius:12px;
+    padding:9px 10px;
+    min-width:140px;
+    height:40px;
+    outline:none;
+    transition: box-shadow .12s ease, border-color .12s ease;
+  }
+  select:focus,input[type=text]:focus{ box-shadow:var(--focus); border-color:rgba(37,99,235,.65) }
+  input[type=text]::placeholder{ color:#9ca3af }
+
+  .btn{
+    height:40px;
+    background:var(--primary);
+    border:1px solid rgba(37,99,235,.35);
+    color:#fff;
+    font-weight:750;
+    padding:10px 14px;
+    border-radius:12px;
+    cursor:pointer;
+    transition:transform .06s ease, filter .2s ease, box-shadow .2s ease;
+    box-shadow:0 10px 22px rgba(37,99,235,.18);
+  }
+  .btn:hover{ filter:brightness(1.02) }
+  .btn:active{ transform:translateY(1px) }
+
+  .btn.secondary{
+    background:#ffffff;
+    color:#111827;
+    border:1px solid var(--border2);
+    box-shadow:none;
+    font-weight:700;
+  }
+  .btn.secondary:hover{ background:#f9fafb }
+
+  .btn.ghost{
+    background:transparent;
+    color:#111827;
+    border:1px dashed var(--border2);
+    box-shadow:none;
+    font-weight:700;
+  }
+  .btn.danger{
+    background:#ffffff;
+    color:var(--danger);
+    border:1px solid rgba(220,38,38,.35);
+    box-shadow:none;
+    font-weight:750;
+  }
+  .btn.danger:hover{ background:rgba(220,38,38,.06) }
+
+  .btn:disabled{
+    cursor:not-allowed;
+    opacity:.55;
+    filter:none;
+    transform:none;
+    box-shadow:none;
+  }
+
+  .pill{
+    padding:6px 10px;
+    border-radius:999px;
+    font-weight:750;
+    font-size:12px;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    border:1px solid var(--border);
+    background:#f9fafb;
+    color:#374151;
+  }
+  .pill.ok{ background:#dcfce7; color:#166534; border-color:#bbf7d0 }
+  .pill.warn{ background:#fff7ed; color:#9a3412; border-color:#fed7aa }
+  .pill.err{ background:#fee2e2; color:#991b1b; border-color:#fecaca }
+  .pill.info{ background:#eff6ff; color:#1e40af; border-color:#bfdbfe }
+
+  table{ width:100%; border-collapse:collapse; border-spacing:0 }
+  thead th{
+    position:sticky;
+    top:0;
+    z-index:2;
+    background:#f9fafb;
+    color:#374151;
+    border-bottom:1px solid var(--border);
+    padding:10px;
+    text-align:left;
+    font-size:13px;
+  }
+  tbody td{
+    border-bottom:1px solid rgba(17,24,39,.06);
+    padding:9px 10px;
+    vertical-align:top;
+  }
+  tbody tr:nth-child(even){ background:#fbfcff }
+  .table-wrap{
+    max-height:55vh;
+    overflow:auto;
+    border-radius:14px;
+    border:1px solid var(--border);
+    background:var(--card);
+  }
+
+  .status-bar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center }
+
+  .footer{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    margin-top:14px;
+    padding-top:10px;
+    border-top:1px solid rgba(17,24,39,.06);
+  }
+  .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace }
+  .hint{ color:var(--muted); }
+  mark{ padding:0 2px; border-radius:4px; background:#fffbeb }
+  .switch{ display:inline-flex; align-items:center; gap:8px; color:var(--muted); font-weight:650 }
+  .switch input{ width:16px; height:16px }
+</style>
+</head>
+<body>
+  <header class="container">
+    <div class="title-wrap">
+      <h1>Avaliador de notas — <span class="mono">Ordem</span> × <span class="mono">Texto</span></h1>
+      <div class="subtitle">Compare “Notas Iniciais” vs “Confirmações”, com filtro por palavras e exportação.</div>
+    </div>
+    <span class="tag"><span class="dot"></span> Local-first • Uma página • CSV (XLSX opcional)</span>
+  </header>
+
+  <main class="container grid">
+    <!-- Uploads e mapeamento -->
+    <section class="card grid cols-2" aria-label="Uploads e mapeamento de colunas">
+      <div>
+        <label>Planilha A — Notas Iniciais (colunas "Ordem", "Texto" e opcional "Data")</label>
+        <div class="file"><input type="file" id="fileA" accept=".xlsx,.xls,.csv" /></div>
+        <div class="row" style="margin-top:8px">
+          <label style="margin:0">Mapear colunas A</label>
+          <select id="colAOrdem"><option value="">Ordem (auto)</option></select>
+          <select id="colATexto"><option value="">Texto (auto)</option></select>
+          <select id="colAData"><option value="">Data (opcional)</option></select>
+        </div>
+      </div>
+      <div>
+        <label>Planilha B — Confirmações (colunas "Ordem", "Texto" e opcional "Data")</label>
+        <div class="file"><input type="file" id="fileB" accept=".xlsx,.xls,.csv" /></div>
+        <div class="row" style="margin-top:8px">
+          <label style="margin:0">Mapear colunas B</label>
+          <select id="colBOrdem"><option value="">Ordem (auto)</option></select>
+          <select id="colBTexto"><option value="">Texto (auto)</option></select>
+          <select id="colBData"><option value="">Data (opcional)</option></select>
+        </div>
+      </div>
+      <div class="row" style="grid-column:1/-1; justify-content:space-between; margin-top:6px;">
+        <button class="btn secondary" id="btnReset">Reiniciar Avaliação</button>
+        <div class="row">
+          <button class="btn" id="btnProcessar">Processar</button>
+          <button class="btn secondary" id="btnExportCSV" disabled>Exportar CSV</button>
+          <button class="btn secondary" id="btnExportXLSX" disabled title="Habilita quando a biblioteca XLSX estiver carregada">Exportar XLSX</button>
+        </div>
+      </div>
+      <p class="hint" style="grid-column:1/-1;margin:0">Dica: se os cabeçalhos não forem exatamente "Ordem", "Texto" e "Data", selecione-os nos dropdowns. <b>Ambiente corporativo?</b> Se o Excel (.xlsx) não abrir, use <b>CSV</b> (Salvar como → CSV). Exemplos válidos para data: <i>Data Confirmação</i>, <i>Data Abertura</i>, <i>Criação</i>, etc.</p>
+    </section>
+
+    <!-- Resumo -->
+    <section class="card" aria-label="Resumo e status">
+      <div class="status-bar" id="statusBar">
+        <span class="pill info" id="pillXLSX">XLSX: verificando…</span>
+        <span class="pill ok" id="pillOk">Com confirmação: 0</span>
+        <span class="pill err" id="pillErr">Sem confirmação: 0</span>
+        <span class="pill warn" id="pillWarn">Somente em B (sem inicial): 0</span>
+        <span class="pill info" id="pillTotal">Total linhas: 0</span>
+        <span class="pill info" id="pillImpact">Impacto VSC: 0</span>
+      </div>
+    </section>
+
+    <!-- Filtro -->
+    <section class="card grid" aria-label="Filtro por palavras em Texto">
+      <div class="row" style="justify-content:space-between; width:100%">
+        <strong>Filtro por palavras</strong>
+        <div class="row">
+          <label for="filterTarget" style="margin:0">Coluna</label>
+          <select id="filterTarget"><option value="inicial">Texto (Inicial)</option><option value="confirmacao">Texto (Confirmação)</option></select>
+          <input id="filterInput" type="text" placeholder="Palavras separadas por vírgula ou espaço (ex.: software sistema ihm)" style="min-width:360px" />
+          <label class="switch" style="margin-left:6px"><input type="checkbox" id="filterAll"> <span>Exigir TODAS as palavras</span></label>
+
+          <label for="presetSelect" style="margin:0">Preset VSC</label>
+          <select id="presetSelect" title="Carrega um conjunto pronto de palavras‑chave para VSC">
+            
+            <option value="">— nenhum —</option>
+            <option value="vsc_geral">VSC - Geral</option>
+          
+          </select>
+          <button class="btn secondary" id="btnApplyPreset" title="Preenche o campo de palavras com o preset selecionado">Aplicar preset</button>
+          <label class="switch" style="margin-left:6px"><input type="checkbox" id="onlyImpact"> <span>Somente Impacto VSC</span></label>
+
+          <button class="btn" id="btnApplyFilter">Aplicar filtro</button>
+          <button class="btn secondary" id="btnClearFilter">Limpar filtro</button>
+        </div>
+      </div>
+      <p class="hint" style="margin:0">O filtro é <b>case-insensitive</b>, ignora acentos e aceita <b>termos/frases</b> separados por <b>vírgula</b>, <b>;</b> ou quebra de linha. Espaços dentro do termo são mantidos (ex.: <i>impacto no produto</i>). Por padrão retorna linhas que contenham <i>qualquer</i> termo. Ative "Exigir TODAS" para interseção.</p>
+      <div class="status-bar">
+        <span class="pill info" id="pillFiltered">Filtradas: 0</span>
+        <div id="filterPins" class="status-bar" style="gap:6px"></div>
+        <button class="btn secondary" id="btnExportCSVFiltered" disabled>Exportar CSV (filtrado)</button>
+        <button class="btn secondary" id="btnExportXLSXFiltered" disabled title="Habilita quando houver filtro e a lib XLSX estiver disponível">Exportar XLSX (filtrado)</button>
+      </div>
+    </section>
+
+    <!-- Resultado -->
+    <section class="card grid" aria-label="Resultado">
+      <div class="table-wrap">
+        <table id="resultTable">
+          <thead><tr><th style="width:140px">Ordem</th><th style="width:150px">Data (Inicial)</th><th>Texto (Inicial)</th><th style="width:170px">Data (Confirmação)</th><th>Texto (Confirmação)</th><th style="width:120px">Impacto VSC</th><th style="width:220px">Categorias</th><th>Palavras encontradas</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="footer">
+        <span class="hint">As linhas em branco na coluna "Texto (Confirmação)" indicam notas iniciais sem a respectiva confirmação. No export, essas células permanecem em branco.</span>
+        <span class="hint">Versão v2.9 • CSV garantido • XLSX opcional (biblioteca).</span>
+      </div>
+    </section>
+  </main>
+
+<script>
+// ==========================
+//  Estado & util XLSX (opcional)
+// ==========================
+let XLSX_READY=false; let resultRows=[];
+function updateXLSXPill(){
+  const pill=document.getElementById('pillXLSX');
+  const btnX=document.getElementById('btnExportXLSX');
+  if(window.XLSX){
+    XLSX_READY=true; pill.textContent='XLSX: carregada'; pill.className='pill ok'; btnX.disabled=!resultRows.length;
+  } else {
+    XLSX_READY=false; pill.textContent='XLSX: indisponível (use CSV ou tente recarregar)'; pill.className='pill warn'; btnX.disabled=true;
+  }
+}
+async function loadScript(src){
+  return new Promise((resolve)=>{ const s=document.createElement('script'); s.src=src; s.async=true; s.onload=()=>resolve(true); s.onerror=()=>resolve(false); document.head.appendChild(s); });
+}
+async function ensureXLSX(){
+  // CSV sempre funciona offline. XLSX depende de biblioteca e rede.
+  // Para evitar travar em ambientes corporativos, NÃO tentamos baixar scripts aqui.
+  if(window.XLSX){ updateXLSXPill(); return true; }
+  updateXLSXPill();
+  return false;
+}
+
+// ==========================
+//  CSV parser (sem dependências)
+// ==========================
+function detectDelimiter(sample){ const first=(sample.split(/\r?\n/).find(l=>l.trim().length)||''); const scores=[{d:';',c:(first.match(/;/g)||[]).length},{d:',',c:(first.match(/,/g)||[]).length},{d:'\t',c:(first.match(/\t/g)||[]).length}]; scores.sort((a,b)=>b.c-a.c); return scores[0].c>0? scores[0].d : ';'; }
+function parseCSV(text, delimiter){
+  delimiter=delimiter||detectDelimiter(text);
+  const rows=[]; let cur='', row=[], inQ=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i], nx=text[i+1];
+    if(inQ){
+      if(ch==='"'){ if(nx==='"'){ cur+='"'; i++; } else inQ=false; }
+      else cur+=ch;
+    } else {
+      if(ch==='"') inQ=true;
+      else if(ch===delimiter){ row.push(cur); cur=''; }
+      else if(ch==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+      else if(ch==='\r'){ /* skip */ }
+      else cur+=ch;
+    }
+  }
+  row.push(cur); rows.push(row); return rows;
+}
+function csvToObjects(text){ const rows=parseCSV(text); if(!rows.length) return []; const headers=rows[0].map(h=>(h||'').toString()); return rows.slice(1).map(r=>Object.fromEntries(headers.map((h,i)=>[h, r[i]??'']))); }
+
+// ==========================
+//  Normalização & helpers
+// ==========================
+const norm=(s)=>(s??"").toString().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').replace(/:/g,'').replace(/\bbreve\b/g,'').trim();
+
+// ==========================
+//  Preset VSC (palavras‑chave) + classificação
+// ==========================
+const KEYSETS = {
+  vsc_geral: [
+    // Sistema / Software
+    'upgrade',
+    'atualização',
+    'update',
+    'patch',
+    'hotfix',
+    'versão',
+    'firmware',
+    'software',
+    'reinstalação',
+    'migração',
+    'substituição',
+    'alteração de configuração',
+    'banco de dados',
+    'database',
+    'backup',
+    'restore',
+
+    // Falhas / Risco
+    'falha',
+    'erro',
+    'queima',
+    'perda de dados',
+    'corrupção',
+    'travamento',
+    'indisponibilidade',
+    'queda',
+    'bug',
+
+    // Automação / Equipamento
+    'PLC',
+    'IHM',
+    'CLP',
+    'interface',
+    'comunicação'
+  ]
+};
+
+function classifyVSC(textA, textB){
+  const txt = norm((textA||'') + ' ' + (textB||''));
+  const allHits = new Set();
+  (KEYSETS.vsc_geral || []).forEach(w=>{
+    const nw = norm(w);
+    if(!nw) return;
+    // match por substring normalizada (mantém case; ignora acentos)
+    if(txt.includes(nw)) allHits.add(w);
+  });
+  const impacto = allHits.size ? 'Sim' : 'Não';
+  const categorias = allHits.size ? 'VSC - Geral' : '';
+  const palavras = [...allHits].sort().join(', ');
+  return {impacto, categorias, palavras};
+}
+
+function applyPresetToInput(){
+  const sel = document.getElementById('presetSelect');
+  const val = sel?.value || '';
+  const input = document.getElementById('filterInput');
+  if(!input) return;
+  if(!val){ return; }
+  const words = (KEYSETS[val] || KEYSETS.vsc_geral || []).map(w=>(w??'').toString().trim()).filter(Boolean);
+  input.value = [...new Set(words)].join(', ');
+}
+
+function guessColumn(headers, cands){ const n=headers.map(h=>norm(h)); for(const c of cands){ const i=n.findIndex(h=>h===c||h.includes(c)); if(i!==-1) return headers[i]; } return ''; }
+function uniqueHeaders(rows){ const set=new Set(); rows.forEach(r=>Object.keys(r).forEach(k=>set.add(k))); return [...set]; }
+function fillColumnMap(selO, selT, headers){ selO.innerHTML='<option value="">Ordem (auto)</option>'; selT.innerHTML='<option value="">Texto (auto)</option>'; headers.forEach(h=>{ const o=document.createElement('option'); o.value=h; o.textContent=h; selO.appendChild(o); const t=document.createElement('option'); t.value=h; t.textContent=h; selT.appendChild(t); }); }
+function fillDateMap(selD, headers){ selD.innerHTML='<option value="">Data (opcional)</option>'; headers.forEach(h=>{ const o=document.createElement('option'); o.value=h; o.textContent=h; selD.appendChild(o); }); }
+
+// ==========================
+//  Leitura de arquivos
+// ==========================
+async function readCSVFile(file){ const text=await file.text(); return csvToObjects(text); }
+async function readXLSXFile(file){
+  const ok=await ensureXLSX();
+  if(!ok){
+    throw new Error('XLSX indisponível neste ambiente (biblioteca bloqueada).\n\nSolução: no Excel, Salvar como → CSV (delimitado). Depois carregue o CSV aqui.');
+  }
+  const data=await file.arrayBuffer();
+  const wb=XLSX.read(data,{type:'array'});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1, defval:""});
+  if(!aoa.length) return [];
+  const headers=aoa[0].map(h=>(h||'').toString());
+  return aoa.slice(1).map(r=>Object.fromEntries(headers.map((h,i)=>[h, r[i]??" "])));
+}
+async function readAny(file){ const name=file.name.toLowerCase(); if(name.endsWith('.csv')) return readCSVFile(file); if(name.endsWith('.xlsx')||name.endsWith('.xls')) return readXLSXFile(file); if((file.type||'').includes('sheet')||(file.type||'').includes('excel')) return readXLSXFile(file); return readCSVFile(file); }
+
+// ==========================
+//  Processamento principal
+// ==========================
+let rowsA=[], rowsB=[];
+const fileA=document.getElementById('fileA'); const fileB=document.getElementById('fileB');
+const colAOrdem=document.getElementById('colAOrdem'); const colATexto=document.getElementById('colATexto'); const colAData=document.getElementById('colAData');
+const colBOrdem=document.getElementById('colBOrdem'); const colBTexto=document.getElementById('colBTexto'); const colBData=document.getElementById('colBData');
+
+fileA.addEventListener('change', async (e)=>{ const f=e.target.files?.[0]; if(!f) return; try{ rowsA=await readAny(f); const H=uniqueHeaders(rowsA); fillColumnMap(colAOrdem,colATexto,H); fillDateMap(colAData,H); const o=guessColumn(H,['ordem','os','numero','id','codigo','nota']); const t=guessColumn(H,['texto confirmacao','texto confirmacoes','texto confirmacao b','texto','descricao','texto breve']); const d=guessColumn(H,['data','dt','data confirmacao','data abertura','criado','criacao']); if(o) colAOrdem.value=o; if(t) colATexto.value=t; if(d) colAData.value=d; } catch(err){ alert('Falha ao ler Planilha A: '+err.message); }});
+fileB.addEventListener('change', async (e)=>{ const f=e.target.files?.[0]; if(!f) return; try{ rowsB=await readAny(f); const H=uniqueHeaders(rowsB); fillColumnMap(colBOrdem,colBTexto,H); fillDateMap(colBData,H); const o=guessColumn(H,['ordem','os','numero','id','codigo','nota']); const t=guessColumn(H,['texto confirmacao','texto confirmacoes','texto confirmacao b','texto','descricao','texto breve']); const d=guessColumn(H,['data','dt','data confirmacao','data abertura','criado','criacao']); if(o) colBOrdem.value=o; if(t) colBTexto.value=t; if(d) colBData.value=d; } catch(err){ alert('Falha ao ler Planilha B: '+err.message); }});
+
+function buildIndex(rows,keyCol,textCol,dateCol){
+  const textMap=new Map();
+  const dateMap=new Map();
+  rows.forEach(r=>{
+    const k=(r[keyCol]??'').toString().trim(); if(!k) return;
+    const t=(r[textCol]??'').toString(); const d=(dateCol? (r[dateCol]??'').toString() : '');
+    if(textMap.has(k)){
+      const prev=textMap.get(k); textMap.set(k, prev ? (prev+'\n— '+t) : t);
+      if(d && !dateMap.get(k)) dateMap.set(k,d); // mantém a 1ª data não vazia
+    } else {
+      textMap.set(k,t); if(d) dateMap.set(k,d);
+    }
+  });
+  return {textMap,dateMap};
+}
+
+function compute(){
+  try{
+    if(!rowsA.length && !rowsB.length){ alert('Carregue as planilhas A e/ou B.'); return; }
+    const HA=uniqueHeaders(rowsA), HB=uniqueHeaders(rowsB);
+    let ordemA=colAOrdem.value||guessColumn(HA,['ordem','os','numero','id','codigo','nota'])||HA[0]||'';
+    let textoA=colATexto.value||guessColumn(HA,['texto confirmacao','texto','descricao','texto breve'])||HA[1]||'';
+    let dataA=colAData.value||guessColumn(HA,['data','dt','data confirmacao','data abertura','criado','criacao']);
+    let ordemB=colBOrdem.value||guessColumn(HB,['ordem','os','numero','id','codigo','nota'])||HB[0]||'';
+    let textoB=colBTexto.value||guessColumn(HB,['texto confirmacao','texto','descricao','texto breve'])||HB[1]||'';
+    let dataB=colBData.value||guessColumn(HB,['data','dt','data confirmacao','data abertura','criado','criacao']);
+
+    const {textMap:idxA, dateMap:dateA} = buildIndex(rowsA,ordemA,textoA,dataA);
+    const {textMap:idxB, dateMap:dateB} = buildIndex(rowsB,ordemB,textoB,dataB);
+
+    const all=new Set([...idxA.keys(), ...idxB.keys()]);
+    const out=[]; let ok=0,missing=0,onlyB=0,impact=0;
+
+    all.forEach(k=>{
+      const tA=idxA.get(k)??''; const tB=idxB.get(k)??'';
+      const hasA=!!tA, hasB=!!tB;
+      const dA=dateA.get(k)||''; const dB=dateB.get(k)||'';
+      const cls = classifyVSC(tA, tB);
+      const row={Ordem:k,'Texto (Inicial)':tA,'Texto (Confirmação)':tB,'Impacto VSC':cls.impacto,'Categorias':cls.categorias,'Palavras encontradas':cls.palavras};
+      if(dataA) row['Data (Inicial)']=dA;
+      if(dataB) row['Data (Confirmação)']=dB;
+      out.push(row);
+      if(hasA&&hasB) ok++; else if(hasA&&!hasB) missing++; else if(!hasA&&hasB) onlyB++;
+      if((row['Impacto VSC']||'')==='Sim') impact++;
+    });
+
+    resultRows=out; renderTable(out); updatePills({ok,missing,onlyB,total:out.length,impact});
+    document.getElementById('btnExportCSV').disabled = out.length===0;
+    document.getElementById('btnExportXLSX').disabled = out.length===0 || !XLSX_READY;
+  } catch(err){ alert('Erro ao processar: '+err.message); }
+}
+
+function renderTable(rows){
+  const tbody=document.querySelector('#resultTable tbody'); tbody.innerHTML='';
+  const frag=document.createDocumentFragment();
+  rows.forEach(r=>{
+    const tr=document.createElement('tr');
+    const td1=document.createElement('td'); td1.textContent=r.Ordem; td1.className='mono';
+    const tdD1=document.createElement('td'); tdD1.textContent=r['Data (Inicial)']||''; tdD1.className='mono';
+    const td2=document.createElement('td'); td2.textContent=r['Texto (Inicial)']||'';
+    const tdD2=document.createElement('td'); tdD2.textContent=r['Data (Confirmação)']||''; tdD2.className='mono';
+    const td3=document.createElement('td'); td3.textContent=r['Texto (Confirmação)']||'';
+    if((r['Texto (Inicial)']||'') && !(r['Texto (Confirmação)']||'')){ td3.style.opacity=.6; td3.title='Sem confirmação'; }
+    const tdI=document.createElement('td'); tdI.textContent=r['Impacto VSC']||''; tdI.className='mono';
+    const tdC=document.createElement('td'); tdC.textContent=r['Categorias']||'';
+    const tdP=document.createElement('td'); tdP.textContent=r['Palavras encontradas']||'';
+    tr.append(td1,tdD1,td2,tdD2,td3,tdI,tdC,tdP); frag.appendChild(tr);
+  });
+  tbody.appendChild(frag);
+}
+
+function updatePills({ok,missing,onlyB,total,impact}){
+  document.getElementById('pillOk').textContent=`Com confirmação: ${ok}`;
+  document.getElementById('pillErr').textContent=`Sem confirmação: ${missing}`;
+  document.getElementById('pillWarn').textContent=`Somente em B (sem inicial): ${onlyB}`;
+  document.getElementById('pillTotal').textContent=`Total linhas: ${total}`;
+  document.getElementById('pillImpact').textContent=`Impacto VSC: ${impact||0}`;
+}
+
+// ==========================
+//  Exportações
+// ==========================
+function makeCSV(rows, filename){
+  if(!rows.length){ alert('Não há dados para exportar.'); return; }
+  const hasDI = 'Data (Inicial)' in rows[0];
+  const hasDF = 'Data (Confirmação)' in rows[0];
+  let headers;
+  const target=document.getElementById('filterTarget')?.value;
+  if(target==='inicial' && hasDI){
+    headers=['Ordem','Data (Inicial)','Texto (Inicial)'];
+    if(hasDF) headers.push('Data (Confirmação)');
+    headers.push('Texto (Confirmação)');
+  } else if(target==='confirmacao' && hasDF){
+    headers=['Ordem','Data (Confirmação)','Texto (Confirmação)'];
+    if(hasDI) headers.push('Data (Inicial)');
+    headers.splice(2,0,'Texto (Inicial)');
+  } else {
+    if(hasDI && hasDF) headers=['Ordem','Data (Inicial)','Texto (Inicial)','Data (Confirmação)','Texto (Confirmação)'];
+    else if(hasDI && !hasDF) headers=['Ordem','Data (Inicial)','Texto (Inicial)','Texto (Confirmação)'];
+    else if(!hasDI && hasDF) headers=['Ordem','Texto (Inicial)','Data (Confirmação)','Texto (Confirmação)'];
+    else headers=['Ordem','Texto (Inicial)','Texto (Confirmação)'];
+  }
+  // Campos extras (classificação VSC)
+  ['Impacto VSC','Categorias','Palavras encontradas'].forEach(h=>{ if((rows[0]||{})[h]!==undefined && !headers.includes(h)) headers.push(h); });
+  const out=[headers.join(';')];
+  rows.forEach(r=>{
+    const row=headers.map(h=>{ const v=(r[h]??'').toString().replace(/\r?\n/g,' '); return v.includes(';') ? '"'+v.replace(/"/g,'""')+'"' : v; }).join(';');
+    out.push(row);
+  });
+  const csv='\uFEFF'+out.join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const nav=window.navigator;
+  if(nav&&typeof nav.msSaveOrOpenBlob==='function'){ nav.msSaveOrOpenBlob(blob,filename); }
+  else { const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.style.display='none'; a.href=url; a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); },100); }
+}
+
+function exportCSV(){ makeCSV(resultRows,'comparacao_notas.csv'); }
+
+async function exportXLSX(){
+  if(!resultRows.length) return; const ok=await ensureXLSX(); if(!ok){ alert('Não foi possível carregar a biblioteca XLSX. Exporte como CSV ou tente novamente.'); return; }
+  const ws=XLSX.utils.json_to_sheet(resultRows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Resultado'); XLSX.writeFile(wb,'comparacao_notas.xlsx');
+}
+
+function exportCSVGeneric(rows, filename){ makeCSV(rows, filename); }
+async function exportXLSXGeneric(rows, filename){ if(!rows.length) return; const ok=await ensureXLSX(); if(!ok){ alert('Não foi possível carregar a biblioteca XLSX.'); return; } const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Resultado'); XLSX.writeFile(wb, filename); }
+
+// ==========================
+//  Filtro de palavras + avisos
+// ==========================
+let filteredRows=[];
+// splitWords:
+// - Mantém frases (ex.: "impacto no produto") como UM termo.
+// - Para múltiplos termos, separe por vírgula/; ou quebra de linha.
+// - Se não houver separador, considera o texto inteiro como um único termo.
+function splitWords(s){
+  const raw=(s||'').toString().trim();
+  if(!raw) return [];
+  const hasSep = /[\n,;]/.test(raw);
+  const parts = hasSep ? raw.split(/[\n,;]+/) : [raw];
+  return parts.map(w=>w.trim()).filter(Boolean).map(w=>norm(w));
+}
+function textContainsWords(text, words, requireAll){ const nt=norm(text||''); if(!words.length) return true; return requireAll ? words.every(w=>nt.includes(w)) : words.some(w=>nt.includes(w)); }
+function highlightMatches(text, words){ if(!text) return ''; let out=text; words.forEach(w=>{ if(!w) return; const esc=w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); const re=new RegExp(esc,'ig'); out=out.replace(re,(m)=>`<mark>${m}</mark>`); }); return out; }
+function applyFilter(){
+  const words=splitWords(document.getElementById('filterInput').value);
+  const requireAll=document.getElementById('filterAll').checked;
+  const onlyImpact=document.getElementById('onlyImpact')?.checked;
+
+  const filtered=(resultRows||[]).filter(r=>{
+    if(onlyImpact && (r['Impacto VSC']||'')!=='Sim') return false;
+    const hay = (r['Texto (Inicial)']||'') + ' ' + (r['Texto (Confirmação)']||'');
+    return textContainsWords(hay, words, requireAll);
+  });
+
+  filteredRows=filtered;
+  const tbody=document.querySelector('#resultTable tbody'); tbody.innerHTML='';
+  const frag=document.createDocumentFragment();
+  filtered.forEach(r=>{ const tr=document.createElement('tr');
+    const td1=document.createElement('td'); td1.textContent=r.Ordem; td1.className='mono';
+    const tdD1=document.createElement('td'); tdD1.textContent=r['Data (Inicial)']||''; tdD1.className='mono';
+    const td2=document.createElement('td'); td2.innerHTML=highlightMatches(r['Texto (Inicial)'], words);
+    const tdD2=document.createElement('td'); tdD2.textContent=r['Data (Confirmação)']||''; tdD2.className='mono';
+    const td3=document.createElement('td'); td3.innerHTML=highlightMatches(r['Texto (Confirmação)'], words);
+    const tdI=document.createElement('td'); tdI.textContent=r['Impacto VSC']||'';
+    const tdC=document.createElement('td'); tdC.textContent=r['Categorias']||'';
+    const tdP=document.createElement('td'); tdP.textContent=r['Palavras encontradas']||'';
+    tr.append(td1,tdD1,td2,tdD2,td3,tdI,tdC,tdP); frag.appendChild(tr); }); tbody.appendChild(frag);
+
+  const pins=document.getElementById('filterPins'); pins.innerHTML='';
+  const counts = words.map(w=>{ let c=0; (resultRows||[]).forEach(r=>{
+    const hay = (r['Texto (Inicial)']||'') + ' ' + (r['Texto (Confirmação)']||'');
+    if(norm(hay).includes(w)) c++;
+  }); return {w,c}; });
+
+  counts.forEach(({w,c})=>{ const span=document.createElement('span'); span.className = c>0 ? 'pill ok' : 'pill err'; span.textContent = c>0 ? `${w} (${c})` : `${w} (0)`; pins.appendChild(span); });
+
+  const pill=document.getElementById('pillFiltered');
+  if(words.length){
+    const found = counts.filter(x=>x.c>0).length;
+    if(found===0){ pill.className='pill err'; pill.textContent=`0/${words.length} encontrados — ${filtered.length} linhas`; }
+    else { pill.className='pill ok'; pill.textContent=`${found}/${words.length} encontrados — ${filtered.length} linhas`; }
+  } else { pill.className='pill'; pill.textContent = `Linhas: ${filtered.length}`; }
+
+  document.getElementById('btnExportCSVFiltered').disabled = filtered.length===0;
+  document.getElementById('btnExportXLSXFiltered').disabled = filtered.length===0 || !XLSX_READY;
+}
+
+function clearFilter(){
+  document.getElementById('filterInput').value=''; document.getElementById('filterAll').checked=false; const oi=document.getElementById('onlyImpact'); if(oi) oi.checked=false; const ps=document.getElementById('presetSelect'); if(ps) ps.value=''; filteredRows=[]; renderTable(resultRows);
+  const pill=document.getElementById('pillFiltered'); pill.className='pill info'; pill.textContent='Filtradas: 0';
+  document.getElementById('btnExportCSVFiltered').disabled = true; document.getElementById('btnExportXLSXFiltered').disabled = true;
+}
+
+// ==========================
+//  Reiniciar app
+// ==========================
+function resetApp(){
+  rowsA=[]; rowsB=[]; resultRows=[]; filteredRows=[];
+  renderTable([]);
+  updatePills({ok:0,missing:0,onlyB:0,total:0,impact:0});
+  const pill=document.getElementById('pillFiltered'); pill.className='pill info'; pill.textContent='Filtradas: 0';
+  document.getElementById('btnExportCSV').disabled=true; document.getElementById('btnExportXLSX').disabled=true;
+  document.getElementById('btnExportCSVFiltered').disabled=true; document.getElementById('btnExportXLSXFiltered').disabled=true;
+  [colAOrdem,colATexto,colAData,colBOrdem,colBTexto,colBData].forEach(sel=> sel.innerHTML = sel.innerHTML.split('</option>')[0] + '</option>');
+  const fa=document.getElementById('fileA'); const fb=document.getElementById('fileB'); if(fa) fa.value=''; if(fb) fb.value='';
+  document.getElementById('filterInput').value=''; document.getElementById('filterAll').checked=false; const oi=document.getElementById('onlyImpact'); if(oi) oi.checked=false; const ps=document.getElementById('presetSelect'); if(ps) ps.value=''; document.getElementById('filterPins').innerHTML='';
+  updateXLSXPill();
+}
+
+// ==========================
+//  Eventos
+// ==========================
+document.getElementById('btnProcessar').addEventListener('click', compute);
+document.getElementById('btnExportCSV').addEventListener('click', exportCSV);
+document.getElementById('btnExportXLSX').addEventListener('click', exportXLSX);
+document.getElementById('btnApplyFilter').addEventListener('click', applyFilter);
+document.getElementById('btnClearFilter').addEventListener('click', clearFilter);
+document.getElementById('btnApplyPreset').addEventListener('click', ()=>{ applyPresetToInput(); });
+document.getElementById('btnExportCSVFiltered').addEventListener('click', ()=> exportCSVGeneric(filteredRows,'comparacao_notas_filtrado.csv'));
+document.getElementById('btnExportXLSXFiltered').addEventListener('click', ()=> exportXLSXGeneric(filteredRows,'comparacao_notas_filtrado.xlsx'));
+document.getElementById('btnReset').addEventListener('click', resetApp);
+window.addEventListener('DOMContentLoaded', ()=> {
+  setTimeout(updateXLSXPill, 50);
+  const pill=document.getElementById('pillFiltered');
+  pill.className='pill info';
+  pill.textContent='Filtradas: 0';
+});
+
+// ==========================
+//  Auto‑testes (console, opcional)
+// ==========================
+function runSelfTests(){
+  try{
+    // Teste mínimo: montagem de headers no CSV com/sem Data
+    const rows=[
+      {Ordem:'100', 'Data (Inicial)':'2025-11-01','Texto (Inicial)':'A', 'Data (Confirmação)':'2025-11-03','Texto (Confirmação)':'OK'},
+      {Ordem:'101', 'Data (Inicial)':'', 'Texto (Inicial)':'B', 'Data (Confirmação)':'', 'Texto (Confirmação)':''}
+    ];
+    makeCSV(rows,'_selftest.csv');
+    console.log('[SelfTest] CSV gerado sem erros.');
+  }catch(e){ console.error('[SelfTest] Falha:', e); }
+}
+// Chame pelo console se quiser: runSelfTests()
+</script>
+</body>
+</html>
