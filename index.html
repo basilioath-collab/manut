@@ -378,7 +378,16 @@ async function ensureXLSX(){
 // ==========================
 //  CSV parser (sem dependências)
 // ==========================
-function detectDelimiter(sample){ const first=(sample.split(/\r?\n/).find(l=>l.trim().length)||''); const scores=[{d:';',c:(first.match(/;/g)||[]).length},{d:',',c:(first.match(/,/g)||[]).length},{d:'\t',c:(first.match(/\t/g)||[]).length}]; scores.sort((a,b)=>b.c-a.c); return scores[0].c>0? scores[0].d : ';'; }
+function detectDelimiter(sample){
+  const lines=(sample||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean).slice(0,10);
+  const candidates=[';',',','\t'];
+  const scores=candidates.map(d=>{
+    const re=new RegExp(d==='\t' ? '\\t' : d.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g');
+    return {d,c:lines.reduce((sum,line)=>sum+(line.match(re)||[]).length,0)};
+  });
+  scores.sort((a,b)=>b.c-a.c);
+  return scores[0].c>0? scores[0].d : ';';
+}
 function parseCSV(text, delimiter){
   delimiter=delimiter||detectDelimiter(text);
   const rows=[]; let cur='', row=[], inQ=false;
@@ -397,12 +406,52 @@ function parseCSV(text, delimiter){
   }
   row.push(cur); rows.push(row); return rows;
 }
-function csvToObjects(text){ const rows=parseCSV(text); if(!rows.length) return []; const headers=rows[0].map(h=>(h||'').toString()); return rows.slice(1).map(r=>Object.fromEntries(headers.map((h,i)=>[h, r[i]??'']))); }
+function isEmptyCell(v){ return v===undefined || v===null || v.toString().trim()===''; }
+function isEmptyRow(row){ return !row || row.every(isEmptyCell); }
+function cleanHeaderName(value, index){
+  const base=(value??'').toString().replace(/^\uFEFF/,'').trim().replace(/\s+/g,' ');
+  return base || `Coluna ${index+1}`;
+}
+function makeUniqueHeaders(row){
+  const seen=new Map();
+  return row.map((h,i)=>{
+    const base=cleanHeaderName(h,i);
+    const key=norm(base);
+    const count=(seen.get(key)||0)+1;
+    seen.set(key,count);
+    return count===1 ? base : `${base} (${count})`;
+  });
+}
+function headerScore(row){
+  const joined=norm((row||[]).join(' '));
+  let score=0;
+  if(/\bordem\b|\bos\b|\bnota\b|numero|n.?\s*ordem/.test(joined)) score+=4;
+  if(/texto|descricao|descrição|breve|observacao|observação/.test(joined)) score+=4;
+  if(/data|dt|criacao|criação|abertura|confirmacao|confirmação/.test(joined)) score+=1;
+  score += Math.min((row||[]).filter(v=>!isEmptyCell(v)).length, 6) * 0.25;
+  return score;
+}
+function aoaToObjects(aoa){
+  const rows=(aoa||[]).filter(r=>Array.isArray(r) && !isEmptyRow(r));
+  if(!rows.length) return [];
+  let headerIndex=0, best=-1;
+  rows.slice(0,20).forEach((row,i)=>{ const score=headerScore(row); if(score>best){ best=score; headerIndex=i; } });
+  const headers=makeUniqueHeaders(rows[headerIndex]);
+  return rows.slice(headerIndex+1)
+    .filter(r=>!isEmptyRow(r))
+    .map(r=>Object.fromEntries(headers.map((h,i)=>[h, r[i]??''])));
+}
+function csvToObjects(text){
+  const raw=(text||'');
+  const forced=raw.match(/^sep=(.)/i)?.[1];
+  const cleaned=raw.replace(/^sep=.\r?\n/i, '');
+  return aoaToObjects(parseCSV(cleaned, forced || undefined));
+}
 
 // ==========================
 //  Normalização & helpers
 // ==========================
-const norm=(s)=>(s??"").toString().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').replace(/:/g,'').replace(/\bbreve\b/g,'').trim();
+const norm=(s)=>(s??"").toString().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').replace(/:/g,'').replace(/\bbreve\b/g,'').trim();
 
 // ==========================
 //  Preset VSC (palavras‑chave) + classificação
@@ -476,7 +525,7 @@ function applyPresetToInput(){
   input.value = [...new Set(words)].join(', ');
 }
 
-function guessColumn(headers, cands){ const n=headers.map(h=>norm(h)); for(const c of cands){ const i=n.findIndex(h=>h===c||h.includes(c)); if(i!==-1) return headers[i]; } return ''; }
+function guessColumn(headers, cands){ const n=headers.map(h=>norm(h)); for(const c of cands.map(norm)){ const i=n.findIndex(h=>h===c||h.includes(c)); if(i!==-1) return headers[i]; } return ''; }
 function uniqueHeaders(rows){ const set=new Set(); rows.forEach(r=>Object.keys(r).forEach(k=>set.add(k))); return [...set]; }
 function fillColumnMap(selO, selT, headers){ selO.innerHTML='<option value="">Ordem (auto)</option>'; selT.innerHTML='<option value="">Texto (auto)</option>'; headers.forEach(h=>{ const o=document.createElement('option'); o.value=h; o.textContent=h; selO.appendChild(o); const t=document.createElement('option'); t.value=h; t.textContent=h; selT.appendChild(t); }); }
 function fillDateMap(selD, headers){ selD.innerHTML='<option value="">Data (opcional)</option>'; headers.forEach(h=>{ const o=document.createElement('option'); o.value=h; o.textContent=h; selD.appendChild(o); }); }
@@ -491,12 +540,10 @@ async function readXLSXFile(file){
     throw new Error('XLSX indisponível neste ambiente (biblioteca bloqueada).\n\nSolução: no Excel, Salvar como → CSV (delimitado). Depois carregue o CSV aqui.');
   }
   const data=await file.arrayBuffer();
-  const wb=XLSX.read(data,{type:'array'});
+  const wb=XLSX.read(data,{type:'array', cellDates:true});
   const ws=wb.Sheets[wb.SheetNames[0]];
-  const aoa=XLSX.utils.sheet_to_json(ws,{header:1, defval:""});
-  if(!aoa.length) return [];
-  const headers=aoa[0].map(h=>(h||'').toString());
-  return aoa.slice(1).map(r=>Object.fromEntries(headers.map((h,i)=>[h, r[i]??" "])));
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1, defval:'', raw:false, dateNF:'dd/mm/yyyy'});
+  return aoaToObjects(aoa);
 }
 async function readAny(file){ const name=file.name.toLowerCase(); if(name.endsWith('.csv')) return readCSVFile(file); if(name.endsWith('.xlsx')||name.endsWith('.xls')) return readXLSXFile(file); if((file.type||'').includes('sheet')||(file.type||'').includes('excel')) return readXLSXFile(file); return readCSVFile(file); }
 
