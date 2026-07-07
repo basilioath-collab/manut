@@ -3,41 +3,44 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Avaliador de notas — Notas Iniciais vs Confirmações</title>
-  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+  <title>Radar VSC — Avaliador de notas</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
   :root{
-    --primary:#2563eb;
+    --primary:#4f46e5;
+    --primary2:#06b6d4;
+    --success:#16a34a;
+    --warning:#f59e0b;
     --primaryHover:#1d4ed8;
     --danger:#dc2626;
-    --bg:#f6f7fb;
+    --bg:#eef2ff;
     --card:#ffffff;
     --border:#e5e7eb;
     --border2:#d1d5db;
     --text:#111827;
     --muted:#6b7280;
     --radius:16px;
-    --shadow:0 10px 30px rgba(17,24,39,.08);
+    --shadow:0 18px 50px rgba(31,41,55,.12);
     --focus:0 0 0 3px rgba(37,99,235,.18);
   }
   *{box-sizing:border-box}
   html,body{height:100%}
-  html{background:var(--bg)}
+  html{background:linear-gradient(135deg,#eef2ff 0%,#f8fafc 45%,#ecfeff 100%)}
   body{
     margin:0;
-    background:var(--bg);
+    background:radial-gradient(circle at top left, rgba(79,70,229,.16), transparent 32%), radial-gradient(circle at top right, rgba(6,182,212,.15), transparent 30%), var(--bg);
     color:var(--text);
     font:14px/1.5 system-ui,-apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
   }
 
   header.container{ padding:22px 18px 10px; display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; }
   .title-wrap{ display:flex; flex-direction:column; gap:4px; }
-  h1{ font-size:20px; margin:0; letter-spacing:.2px }
-  .subtitle{ color:var(--muted); font-size:13px }
+  h1{ font-size:clamp(24px,3vw,36px); margin:0; letter-spacing:-.8px }
+  .subtitle{ color:#475569; font-size:14px; max-width:760px }
 
   .tag{
-    padding:6px 10px;
-    background:var(--card);
+    padding:8px 12px;
+    background:rgba(255,255,255,.78);
     color:#374151;
     border-radius:999px;
     border:1px solid var(--border);
@@ -55,7 +58,8 @@
     border:1px solid var(--border);
     border-radius:var(--radius);
     box-shadow:var(--shadow);
-    padding:16px;
+    padding:18px;
+    backdrop-filter:saturate(150%) blur(8px);
   }
   .grid{ display:grid; gap:14px }
   .grid.cols-2{ grid-template-columns:repeat(2,minmax(0,1fr)) }
@@ -63,14 +67,18 @@
 
   label{ display:block; font-weight:650; margin-bottom:6px; color:var(--muted) }
   .file{
-    border:1px dashed var(--border2);
-    border-radius:12px;
-    padding:12px;
+    border:1px dashed #a5b4fc;
+    border-radius:16px;
+    padding:16px;
     display:flex;
     gap:12px;
     align-items:center;
-    background:#fbfcff;
+    background:linear-gradient(180deg,#ffffff,#f8fafc);
+    min-height:74px;
+    transition:border-color .15s ease, transform .15s ease, box-shadow .15s ease;
   }
+  .file:hover,.file.dragover{ border-color:var(--primary); transform:translateY(-1px); box-shadow:0 12px 28px rgba(79,70,229,.12) }
+  .file-meta{ color:var(--muted); font-size:12px; margin-top:6px }
   input[type=file]{ max-width:100%; color:var(--muted) }
 
   .row{ display:flex; flex-wrap:wrap; gap:10px; align-items:center }
@@ -180,7 +188,22 @@
   }
 
   .status-bar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center }
+  .hero{display:grid;grid-template-columns:1.25fr .75fr;gap:16px;align-items:stretch}
+  @media(max-width:900px){.hero{grid-template-columns:1fr}}
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+  @media(max-width:800px){.steps{grid-template-columns:1fr}}
+  .step{border:1px solid var(--border);border-radius:14px;padding:12px;background:#fff}
+  .step b{display:block;margin-bottom:4px}
+  .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  @media(max-width:900px){.metrics{grid-template-columns:repeat(2,1fr)}}
+  .metric{padding:14px;border-radius:16px;background:linear-gradient(180deg,#fff,#f8fafc);border:1px solid var(--border)}
+  .metric .value{font-size:26px;font-weight:850;letter-spacing:-.8px}.metric .label{color:var(--muted);font-weight:650}
+  .recommendation{border-left:5px solid var(--primary);background:#f8fafc;border-radius:14px;padding:14px}
+  .recommendation h3{margin:0 0 8px;font-size:16px}.recommendation ol{margin:8px 0 0 20px;padding:0}.recommendation li{margin:6px 0}.score{font-weight:850;color:#4338ca}
 
+  .impact-yes{background:#eef2ff;color:#3730a3;border-radius:999px;padding:4px 8px;font-weight:800}
+  .impact-no{color:#64748b}
+  .prio-alta{color:#991b1b;font-weight:850}.prio-media{color:#9a3412;font-weight:850}.prio-baixa{color:#166534;font-weight:850}
   .footer{
     display:flex;
     justify-content:space-between;
@@ -200,18 +223,34 @@
 <body>
   <header class="container">
     <div class="title-wrap">
-      <h1>Avaliador de notas — <span class="mono">Ordem</span> × <span class="mono">Texto</span></h1>
-      <div class="subtitle">Compare “Notas Iniciais” vs “Confirmações”, com filtro por palavras e exportação.</div>
+      <h1>Radar VSC — Avaliador inteligente de notas</h1>
+      <div class="subtitle">Carregue CSV ou XLSX, compare notas iniciais e confirmações, identifique impacto por palavras-chave e receba uma lista priorizada do que vale avaliar.</div>
     </div>
-    <span class="tag"><span class="dot"></span> Local-first • Uma página • CSV (XLSX opcional)</span>
+    <span class="tag"><span class="dot"></span> Local-first • CSV e XLSX • Priorização VSC</span>
   </header>
 
   <main class="container grid">
+    <section class="hero">
+      <div class="card">
+        <strong>Como usar</strong>
+        <div class="steps">
+          <div class="step"><b>1. Carregue</b><span class="hint">Envie CSV, XLSX ou XLS das notas iniciais e confirmações.</span></div>
+          <div class="step"><b>2. Confira</b><span class="hint">Ajuste as colunas de ordem, texto e data se necessário.</span></div>
+          <div class="step"><b>3. Avalie</b><span class="hint">Veja recomendações automáticas de notas com possível impacto a VSC.</span></div>
+        </div>
+      </div>
+      <div class="card recommendation" id="recommendationBox">
+        <h3>Recomendação VSC</h3>
+        <p class="hint" id="recommendationText">Processe as planilhas para gerar a frase: “É bom avaliar as notas X, Y, Z por impacto a VSC”.</p>
+        <ol id="recommendationList"></ol>
+      </div>
+    </section>
+
     <!-- Uploads e mapeamento -->
     <section class="card grid cols-2" aria-label="Uploads e mapeamento de colunas">
       <div>
         <label>Planilha A — Notas Iniciais (colunas "Ordem", "Texto" e opcional "Data")</label>
-        <div class="file"><input type="file" id="fileA" accept=".xlsx,.xls,.csv" /></div>
+        <div class="file" data-file-drop="fileA"><input type="file" id="fileA" accept=".xlsx,.xls,.csv" /></div><div class="file-meta" id="metaA">Aceita .csv, .xlsx e .xls</div>
         <div class="row" style="margin-top:8px">
           <label style="margin:0">Mapear colunas A</label>
           <select id="colAOrdem"><option value="">Ordem (auto)</option></select>
@@ -221,7 +260,7 @@
       </div>
       <div>
         <label>Planilha B — Confirmações (colunas "Ordem", "Texto" e opcional "Data")</label>
-        <div class="file"><input type="file" id="fileB" accept=".xlsx,.xls,.csv" /></div>
+        <div class="file" data-file-drop="fileB"><input type="file" id="fileB" accept=".xlsx,.xls,.csv" /></div><div class="file-meta" id="metaB">Aceita .csv, .xlsx e .xls</div>
         <div class="row" style="margin-top:8px">
           <label style="margin:0">Mapear colunas B</label>
           <select id="colBOrdem"><option value="">Ordem (auto)</option></select>
@@ -242,7 +281,7 @@
 
     <!-- Resumo -->
     <section class="card" aria-label="Resumo e status">
-      <div class="status-bar" id="statusBar">
+      <div class="metrics" id="metricCards"><div class="metric"><div class="value" id="metricTotal">0</div><div class="label">Notas analisadas</div></div><div class="metric"><div class="value" id="metricImpact">0</div><div class="label">Possível impacto VSC</div></div><div class="metric"><div class="value" id="metricMissing">0</div><div class="label">Sem confirmação</div></div><div class="metric"><div class="value" id="metricOnlyB">0</div><div class="label">Só em confirmações</div></div></div><div class="status-bar" id="statusBar" style="margin-top:12px">
         <span class="pill info" id="pillXLSX">XLSX: verificando…</span>
         <span class="pill ok" id="pillOk">Com confirmação: 0</span>
         <span class="pill err" id="pillErr">Sem confirmação: 0</span>
@@ -267,6 +306,9 @@
             
             <option value="">— nenhum —</option>
             <option value="vsc_geral">VSC - Geral</option>
+            <option value="seguranca">Segurança / intertravamento</option>
+            <option value="operacao">Operação / produção</option>
+            <option value="controle">Automação / controle</option>
           
           </select>
           <button class="btn secondary" id="btnApplyPreset" title="Preenche o campo de palavras com o preset selecionado">Aplicar preset</button>
@@ -289,13 +331,13 @@
     <section class="card grid" aria-label="Resultado">
       <div class="table-wrap">
         <table id="resultTable">
-          <thead><tr><th style="width:140px">Ordem</th><th style="width:150px">Data (Inicial)</th><th>Texto (Inicial)</th><th style="width:170px">Data (Confirmação)</th><th>Texto (Confirmação)</th><th style="width:120px">Impacto VSC</th><th style="width:220px">Categorias</th><th>Palavras encontradas</th></tr></thead>
+          <thead><tr><th style="width:140px">Ordem</th><th style="width:150px">Data (Inicial)</th><th>Texto (Inicial)</th><th style="width:170px">Data (Confirmação)</th><th>Texto (Confirmação)</th><th style="width:120px">Impacto VSC</th><th style="width:110px">Prioridade</th><th style="width:220px">Categorias</th><th>Palavras encontradas</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
       <div class="footer">
         <span class="hint">As linhas em branco na coluna "Texto (Confirmação)" indicam notas iniciais sem a respectiva confirmação. No export, essas células permanecem em branco.</span>
-        <span class="hint">Versão v2.9 • CSV garantido • XLSX opcional (biblioteca).</span>
+        <span class="hint">Versão v3.0 • CSV/XLSX • recomendações automáticas VSC.</span>
       </div>
     </section>
   </main>
@@ -318,9 +360,17 @@ async function loadScript(src){
   return new Promise((resolve)=>{ const s=document.createElement('script'); s.src=src; s.async=true; s.onload=()=>resolve(true); s.onerror=()=>resolve(false); document.head.appendChild(s); });
 }
 async function ensureXLSX(){
-  // CSV sempre funciona offline. XLSX depende de biblioteca e rede.
-  // Para evitar travar em ambientes corporativos, NÃO tentamos baixar scripts aqui.
+  // CSV funciona sem dependências; XLSX usa SheetJS com fallback de CDN.
   if(window.XLSX){ updateXLSXPill(); return true; }
+  const sources=[
+    'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+    'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'
+  ];
+  for(const src of sources){
+    const ok=await loadScript(src);
+    if(ok && window.XLSX){ updateXLSXPill(); return true; }
+  }
   updateXLSXPill();
   return false;
 }
@@ -328,7 +378,16 @@ async function ensureXLSX(){
 // ==========================
 //  CSV parser (sem dependências)
 // ==========================
-function detectDelimiter(sample){ const first=(sample.split(/\r?\n/).find(l=>l.trim().length)||''); const scores=[{d:';',c:(first.match(/;/g)||[]).length},{d:',',c:(first.match(/,/g)||[]).length},{d:'\t',c:(first.match(/\t/g)||[]).length}]; scores.sort((a,b)=>b.c-a.c); return scores[0].c>0? scores[0].d : ';'; }
+function detectDelimiter(sample){
+  const lines=(sample||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean).slice(0,10);
+  const candidates=[';',',','\t'];
+  const scores=candidates.map(d=>{
+    const re=new RegExp(d==='\t' ? '\\t' : d.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g');
+    return {d,c:lines.reduce((sum,line)=>sum+(line.match(re)||[]).length,0)};
+  });
+  scores.sort((a,b)=>b.c-a.c);
+  return scores[0].c>0? scores[0].d : ';';
+}
 function parseCSV(text, delimiter){
   delimiter=delimiter||detectDelimiter(text);
   const rows=[]; let cur='', row=[], inQ=false;
@@ -347,69 +406,113 @@ function parseCSV(text, delimiter){
   }
   row.push(cur); rows.push(row); return rows;
 }
-function csvToObjects(text){ const rows=parseCSV(text); if(!rows.length) return []; const headers=rows[0].map(h=>(h||'').toString()); return rows.slice(1).map(r=>Object.fromEntries(headers.map((h,i)=>[h, r[i]??'']))); }
+function isEmptyCell(v){ return v===undefined || v===null || v.toString().trim()===''; }
+function isEmptyRow(row){ return !row || row.every(isEmptyCell); }
+function cleanHeaderName(value, index){
+  const base=(value??'').toString().replace(/^\uFEFF/,'').trim().replace(/\s+/g,' ');
+  return base || `Coluna ${index+1}`;
+}
+function makeUniqueHeaders(row){
+  const seen=new Map();
+  return row.map((h,i)=>{
+    const base=cleanHeaderName(h,i);
+    const key=norm(base);
+    const count=(seen.get(key)||0)+1;
+    seen.set(key,count);
+    return count===1 ? base : `${base} (${count})`;
+  });
+}
+function headerScore(row){
+  const joined=norm((row||[]).join(' '));
+  let score=0;
+  if(/\bordem\b|\bos\b|\bnota\b|numero|n.?\s*ordem/.test(joined)) score+=4;
+  if(/texto|descricao|descrição|breve|observacao|observação/.test(joined)) score+=4;
+  if(/data|dt|criacao|criação|abertura|confirmacao|confirmação/.test(joined)) score+=1;
+  score += Math.min((row||[]).filter(v=>!isEmptyCell(v)).length, 6) * 0.25;
+  return score;
+}
+function aoaToObjects(aoa){
+  const rows=(aoa||[]).filter(r=>Array.isArray(r) && !isEmptyRow(r));
+  if(!rows.length) return [];
+  let headerIndex=0, best=-1;
+  rows.slice(0,20).forEach((row,i)=>{ const score=headerScore(row); if(score>best){ best=score; headerIndex=i; } });
+  const headers=makeUniqueHeaders(rows[headerIndex]);
+  return rows.slice(headerIndex+1)
+    .filter(r=>!isEmptyRow(r))
+    .map(r=>Object.fromEntries(headers.map((h,i)=>[h, r[i]??''])));
+}
+function csvToObjects(text){
+  const raw=(text||'');
+  const forced=raw.match(/^sep=(.)/i)?.[1];
+  const cleaned=raw.replace(/^sep=.\r?\n/i, '');
+  return aoaToObjects(parseCSV(cleaned, forced || undefined));
+}
 
 // ==========================
 //  Normalização & helpers
 // ==========================
-const norm=(s)=>(s??"").toString().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').replace(/:/g,'').replace(/\bbreve\b/g,'').trim();
+const norm=(s)=>(s??"").toString().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').replace(/:/g,'').replace(/\bbreve\b/g,'').trim();
 
 // ==========================
 //  Preset VSC (palavras‑chave) + classificação
 // ==========================
 const KEYSETS = {
   vsc_geral: [
-    // Sistema / Software
-    'upgrade',
-    'atualização',
-    'update',
-    'patch',
-    'hotfix',
-    'versão',
-    'firmware',
-    'software',
-    'reinstalação',
-    'migração',
-    'substituição',
-    'alteração de configuração',
-    'banco de dados',
-    'database',
-    'backup',
-    'restore',
-
-    // Falhas / Risco
-    'falha',
-    'erro',
-    'queima',
-    'perda de dados',
-    'corrupção',
-    'travamento',
-    'indisponibilidade',
-    'queda',
-    'bug',
-
-    // Automação / Equipamento
-    'PLC',
-    'IHM',
-    'CLP',
-    'interface',
-    'comunicação'
-  ]
+    'upgrade','atualização','update','patch','hotfix','versão','firmware','software','reinstalação','migração','substituição','alteração de configuração','banco de dados','database','backup','restore','falha','erro','queima','perda de dados','corrupção','travamento','indisponibilidade','queda','bug','PLC','IHM','CLP','interface','comunicação'
+  ],
+  seguranca: ['segurança','intertravamento','alarme','proteção','risco','emergência','bloqueio','permissivo','safety','parada de emergência'],
+  operacao: ['produção','linha parada','parada','indisponibilidade','downtime','perda','qualidade','lote','processo','receita'],
+  controle: ['PLC','CLP','IHM','supervisório','SCADA','inversor','drive','servo','sensor','rede','comunicação','profinet','profibus','ethernet']
 };
+
+const CATEGORY_LABELS = {
+  vsc_geral: 'VSC - Geral',
+  seguranca: 'Segurança / intertravamento',
+  operacao: 'Operação / produção',
+  controle: 'Automação / controle'
+};
+const KEYWORD_WEIGHTS = {seguranca:4, operacao:3, controle:2, vsc_geral:1};
 
 function classifyVSC(textA, textB){
   const txt = norm((textA||'') + ' ' + (textB||''));
-  const allHits = new Set();
-  (KEYSETS.vsc_geral || []).forEach(w=>{
-    const nw = norm(w);
-    if(!nw) return;
-    // match por substring normalizada (mantém case; ignora acentos)
-    if(txt.includes(nw)) allHits.add(w);
+  const hitsByCategory = new Map();
+  let score = 0;
+  Object.entries(KEYSETS).forEach(([category, words])=>{
+    words.forEach(w=>{
+      const nw = norm(w);
+      if(!nw || !txt.includes(nw)) return;
+      if(!hitsByCategory.has(category)) hitsByCategory.set(category, new Set());
+      hitsByCategory.get(category).add(w);
+    });
   });
-  const impacto = allHits.size ? 'Sim' : 'Não';
-  const categorias = allHits.size ? 'VSC - Geral' : '';
-  const palavras = [...allHits].sort().join(', ');
-  return {impacto, categorias, palavras};
+  hitsByCategory.forEach((hits, category)=>{ score += hits.size * (KEYWORD_WEIGHTS[category] || 1); });
+  const allHits = [...hitsByCategory.values()].flatMap(set=>[...set]);
+  const categorias = [...hitsByCategory.keys()].map(k=>CATEGORY_LABELS[k] || k).join(', ');
+  const prioridade = score >= 10 ? 'Alta' : score >= 4 ? 'Média' : score > 0 ? 'Baixa' : '';
+  return {impacto: allHits.length ? 'Sim' : 'Não', categorias, palavras:[...new Set(allHits)].sort().join(', '), score, prioridade};
+}
+
+function priorityRank(p){ return p==='Alta' ? 3 : p==='Média' ? 2 : p==='Baixa' ? 1 : 0; }
+function topImpactRows(rows, limit=8){
+  return [...(rows||[])].filter(r=>r['Impacto VSC']==='Sim').sort((a,b)=>(b['Score VSC']||0)-(a['Score VSC']||0) || priorityRank(b['Prioridade'])-priorityRank(a['Prioridade']) || String(a.Ordem).localeCompare(String(b.Ordem))).slice(0,limit);
+}
+function updateRecommendations(rows){
+  const text=document.getElementById('recommendationText');
+  const list=document.getElementById('recommendationList');
+  if(!text || !list) return;
+  list.innerHTML='';
+  const top=topImpactRows(rows,8);
+  if(!top.length){
+    text.textContent = rows?.length ? 'Nenhuma nota com palavra-chave VSC foi encontrada. Se necessário, ajuste o preset ou filtre por termos específicos do seu processo.' : 'Processe as planilhas para gerar a frase: “É bom avaliar as notas X, Y, Z por impacto a VSC”.';
+    return;
+  }
+  const ids=top.map(r=>r.Ordem).join(', ');
+  text.innerHTML = `<b>É bom avaliar as notas ${ids} por impacto a VSC</b>, porque elas concentraram palavras-chave e maior pontuação de risco.`;
+  top.slice(0,5).forEach(r=>{
+    const li=document.createElement('li');
+    li.innerHTML = `<span class="score">${r.Ordem}</span> — prioridade <b>${r['Prioridade']}</b> (score ${r['Score VSC']||0}); termos: ${(r['Palavras encontradas']||'').slice(0,140)}`;
+    list.appendChild(li);
+  });
 }
 
 function applyPresetToInput(){
@@ -418,11 +521,11 @@ function applyPresetToInput(){
   const input = document.getElementById('filterInput');
   if(!input) return;
   if(!val){ return; }
-  const words = (KEYSETS[val] || KEYSETS.vsc_geral || []).map(w=>(w??'').toString().trim()).filter(Boolean);
+  const words = (val ? (KEYSETS[val] || []) : Object.values(KEYSETS).flat()).map(w=>(w??'').toString().trim()).filter(Boolean);
   input.value = [...new Set(words)].join(', ');
 }
 
-function guessColumn(headers, cands){ const n=headers.map(h=>norm(h)); for(const c of cands){ const i=n.findIndex(h=>h===c||h.includes(c)); if(i!==-1) return headers[i]; } return ''; }
+function guessColumn(headers, cands){ const n=headers.map(h=>norm(h)); for(const c of cands.map(norm)){ const i=n.findIndex(h=>h===c||h.includes(c)); if(i!==-1) return headers[i]; } return ''; }
 function uniqueHeaders(rows){ const set=new Set(); rows.forEach(r=>Object.keys(r).forEach(k=>set.add(k))); return [...set]; }
 function fillColumnMap(selO, selT, headers){ selO.innerHTML='<option value="">Ordem (auto)</option>'; selT.innerHTML='<option value="">Texto (auto)</option>'; headers.forEach(h=>{ const o=document.createElement('option'); o.value=h; o.textContent=h; selO.appendChild(o); const t=document.createElement('option'); t.value=h; t.textContent=h; selT.appendChild(t); }); }
 function fillDateMap(selD, headers){ selD.innerHTML='<option value="">Data (opcional)</option>'; headers.forEach(h=>{ const o=document.createElement('option'); o.value=h; o.textContent=h; selD.appendChild(o); }); }
@@ -437,14 +540,32 @@ async function readXLSXFile(file){
     throw new Error('XLSX indisponível neste ambiente (biblioteca bloqueada).\n\nSolução: no Excel, Salvar como → CSV (delimitado). Depois carregue o CSV aqui.');
   }
   const data=await file.arrayBuffer();
-  const wb=XLSX.read(data,{type:'array'});
+  const wb=XLSX.read(data,{type:'array', cellDates:true});
   const ws=wb.Sheets[wb.SheetNames[0]];
-  const aoa=XLSX.utils.sheet_to_json(ws,{header:1, defval:""});
-  if(!aoa.length) return [];
-  const headers=aoa[0].map(h=>(h||'').toString());
-  return aoa.slice(1).map(r=>Object.fromEntries(headers.map((h,i)=>[h, r[i]??" "])));
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1, defval:'', raw:false, dateNF:'dd/mm/yyyy'});
+  return aoaToObjects(aoa);
 }
 async function readAny(file){ const name=file.name.toLowerCase(); if(name.endsWith('.csv')) return readCSVFile(file); if(name.endsWith('.xlsx')||name.endsWith('.xls')) return readXLSXFile(file); if((file.type||'').includes('sheet')||(file.type||'').includes('excel')) return readXLSXFile(file); return readCSVFile(file); }
+
+
+function setupDropZones(){
+  document.querySelectorAll('[data-file-drop]').forEach(zone=>{
+    const input=document.getElementById(zone.dataset.fileDrop);
+    if(!input) return;
+    ['dragenter','dragover'].forEach(evt=>zone.addEventListener(evt,(e)=>{ e.preventDefault(); zone.classList.add('dragover'); }));
+    ['dragleave','drop'].forEach(evt=>zone.addEventListener(evt,(e)=>{ e.preventDefault(); zone.classList.remove('dragover'); }));
+    zone.addEventListener('drop',(e)=>{
+      const file=e.dataTransfer?.files?.[0];
+      if(!file) return;
+      const dt=new DataTransfer(); dt.items.add(file); input.files=dt.files; input.dispatchEvent(new Event('change'));
+    });
+  });
+}
+function setFileMeta(id, file, rows){
+  const el=document.getElementById(id);
+  if(!el || !file) return;
+  el.textContent = `${file.name} • ${rows.length} linhas importadas`;
+}
 
 // ==========================
 //  Processamento principal
@@ -454,8 +575,8 @@ const fileA=document.getElementById('fileA'); const fileB=document.getElementByI
 const colAOrdem=document.getElementById('colAOrdem'); const colATexto=document.getElementById('colATexto'); const colAData=document.getElementById('colAData');
 const colBOrdem=document.getElementById('colBOrdem'); const colBTexto=document.getElementById('colBTexto'); const colBData=document.getElementById('colBData');
 
-fileA.addEventListener('change', async (e)=>{ const f=e.target.files?.[0]; if(!f) return; try{ rowsA=await readAny(f); const H=uniqueHeaders(rowsA); fillColumnMap(colAOrdem,colATexto,H); fillDateMap(colAData,H); const o=guessColumn(H,['ordem','os','numero','id','codigo','nota']); const t=guessColumn(H,['texto confirmacao','texto confirmacoes','texto confirmacao b','texto','descricao','texto breve']); const d=guessColumn(H,['data','dt','data confirmacao','data abertura','criado','criacao']); if(o) colAOrdem.value=o; if(t) colATexto.value=t; if(d) colAData.value=d; } catch(err){ alert('Falha ao ler Planilha A: '+err.message); }});
-fileB.addEventListener('change', async (e)=>{ const f=e.target.files?.[0]; if(!f) return; try{ rowsB=await readAny(f); const H=uniqueHeaders(rowsB); fillColumnMap(colBOrdem,colBTexto,H); fillDateMap(colBData,H); const o=guessColumn(H,['ordem','os','numero','id','codigo','nota']); const t=guessColumn(H,['texto confirmacao','texto confirmacoes','texto confirmacao b','texto','descricao','texto breve']); const d=guessColumn(H,['data','dt','data confirmacao','data abertura','criado','criacao']); if(o) colBOrdem.value=o; if(t) colBTexto.value=t; if(d) colBData.value=d; } catch(err){ alert('Falha ao ler Planilha B: '+err.message); }});
+fileA.addEventListener('change', async (e)=>{ const f=e.target.files?.[0]; if(!f) return; try{ rowsA=await readAny(f); const H=uniqueHeaders(rowsA); fillColumnMap(colAOrdem,colATexto,H); fillDateMap(colAData,H); const o=guessColumn(H,['ordem','os','numero','id','codigo','nota']); const t=guessColumn(H,['texto confirmacao','texto confirmacoes','texto confirmacao b','texto','descricao','texto breve']); const d=guessColumn(H,['data','dt','data confirmacao','data abertura','criado','criacao']); if(o) colAOrdem.value=o; if(t) colATexto.value=t; if(d) colAData.value=d; setFileMeta('metaA', f, rowsA); } catch(err){ alert('Falha ao ler Planilha A: '+err.message); }});
+fileB.addEventListener('change', async (e)=>{ const f=e.target.files?.[0]; if(!f) return; try{ rowsB=await readAny(f); const H=uniqueHeaders(rowsB); fillColumnMap(colBOrdem,colBTexto,H); fillDateMap(colBData,H); const o=guessColumn(H,['ordem','os','numero','id','codigo','nota']); const t=guessColumn(H,['texto confirmacao','texto confirmacoes','texto confirmacao b','texto','descricao','texto breve']); const d=guessColumn(H,['data','dt','data confirmacao','data abertura','criado','criacao']); if(o) colBOrdem.value=o; if(t) colBTexto.value=t; if(d) colBData.value=d; setFileMeta('metaB', f, rowsB); } catch(err){ alert('Falha ao ler Planilha B: '+err.message); }});
 
 function buildIndex(rows,keyCol,textCol,dateCol){
   const textMap=new Map();
@@ -495,7 +616,7 @@ function compute(){
       const hasA=!!tA, hasB=!!tB;
       const dA=dateA.get(k)||''; const dB=dateB.get(k)||'';
       const cls = classifyVSC(tA, tB);
-      const row={Ordem:k,'Texto (Inicial)':tA,'Texto (Confirmação)':tB,'Impacto VSC':cls.impacto,'Categorias':cls.categorias,'Palavras encontradas':cls.palavras};
+      const row={Ordem:k,'Texto (Inicial)':tA,'Texto (Confirmação)':tB,'Impacto VSC':cls.impacto,'Prioridade':cls.prioridade,'Score VSC':cls.score,'Categorias':cls.categorias,'Palavras encontradas':cls.palavras};
       if(dataA) row['Data (Inicial)']=dA;
       if(dataB) row['Data (Confirmação)']=dB;
       out.push(row);
@@ -503,7 +624,7 @@ function compute(){
       if((row['Impacto VSC']||'')==='Sim') impact++;
     });
 
-    resultRows=out; renderTable(out); updatePills({ok,missing,onlyB,total:out.length,impact});
+    resultRows=out; renderTable(out); updatePills({ok,missing,onlyB,total:out.length,impact}); updateRecommendations(out);
     document.getElementById('btnExportCSV').disabled = out.length===0;
     document.getElementById('btnExportXLSX').disabled = out.length===0 || !XLSX_READY;
   } catch(err){ alert('Erro ao processar: '+err.message); }
@@ -520,10 +641,11 @@ function renderTable(rows){
     const tdD2=document.createElement('td'); tdD2.textContent=r['Data (Confirmação)']||''; tdD2.className='mono';
     const td3=document.createElement('td'); td3.textContent=r['Texto (Confirmação)']||'';
     if((r['Texto (Inicial)']||'') && !(r['Texto (Confirmação)']||'')){ td3.style.opacity=.6; td3.title='Sem confirmação'; }
-    const tdI=document.createElement('td'); tdI.textContent=r['Impacto VSC']||''; tdI.className='mono';
+    const tdI=document.createElement('td'); tdI.innerHTML=(r['Impacto VSC']==='Sim')?'<span class="impact-yes">Sim</span>':'<span class="impact-no">Não</span>';
+    const tdPr=document.createElement('td'); tdPr.textContent=r['Prioridade']||''; tdPr.className = r['Prioridade']==='Alta'?'prio-alta':(r['Prioridade']==='Média'?'prio-media':'prio-baixa');
     const tdC=document.createElement('td'); tdC.textContent=r['Categorias']||'';
     const tdP=document.createElement('td'); tdP.textContent=r['Palavras encontradas']||'';
-    tr.append(td1,tdD1,td2,tdD2,td3,tdI,tdC,tdP); frag.appendChild(tr);
+    tr.append(td1,tdD1,td2,tdD2,td3,tdI,tdPr,tdC,tdP); frag.appendChild(tr);
   });
   tbody.appendChild(frag);
 }
@@ -534,6 +656,10 @@ function updatePills({ok,missing,onlyB,total,impact}){
   document.getElementById('pillWarn').textContent=`Somente em B (sem inicial): ${onlyB}`;
   document.getElementById('pillTotal').textContent=`Total linhas: ${total}`;
   document.getElementById('pillImpact').textContent=`Impacto VSC: ${impact||0}`;
+  document.getElementById('metricTotal').textContent=total;
+  document.getElementById('metricImpact').textContent=impact||0;
+  document.getElementById('metricMissing').textContent=missing;
+  document.getElementById('metricOnlyB').textContent=onlyB;
 }
 
 // ==========================
@@ -560,7 +686,7 @@ function makeCSV(rows, filename){
     else headers=['Ordem','Texto (Inicial)','Texto (Confirmação)'];
   }
   // Campos extras (classificação VSC)
-  ['Impacto VSC','Categorias','Palavras encontradas'].forEach(h=>{ if((rows[0]||{})[h]!==undefined && !headers.includes(h)) headers.push(h); });
+  ['Impacto VSC','Prioridade','Score VSC','Categorias','Palavras encontradas'].forEach(h=>{ if((rows[0]||{})[h]!==undefined && !headers.includes(h)) headers.push(h); });
   const out=[headers.join(';')];
   rows.forEach(r=>{
     const row=headers.map(h=>{ const v=(r[h]??'').toString().replace(/\r?\n/g,' '); return v.includes(';') ? '"'+v.replace(/"/g,'""')+'"' : v; }).join(';');
@@ -620,10 +746,11 @@ function applyFilter(){
     const td2=document.createElement('td'); td2.innerHTML=highlightMatches(r['Texto (Inicial)'], words);
     const tdD2=document.createElement('td'); tdD2.textContent=r['Data (Confirmação)']||''; tdD2.className='mono';
     const td3=document.createElement('td'); td3.innerHTML=highlightMatches(r['Texto (Confirmação)'], words);
-    const tdI=document.createElement('td'); tdI.textContent=r['Impacto VSC']||'';
+    const tdI=document.createElement('td'); tdI.innerHTML=(r['Impacto VSC']==='Sim')?'<span class="impact-yes">Sim</span>':'<span class="impact-no">Não</span>';
+    const tdPr=document.createElement('td'); tdPr.textContent=r['Prioridade']||''; tdPr.className = r['Prioridade']==='Alta'?'prio-alta':(r['Prioridade']==='Média'?'prio-media':'prio-baixa');
     const tdC=document.createElement('td'); tdC.textContent=r['Categorias']||'';
     const tdP=document.createElement('td'); tdP.textContent=r['Palavras encontradas']||'';
-    tr.append(td1,tdD1,td2,tdD2,td3,tdI,tdC,tdP); frag.appendChild(tr); }); tbody.appendChild(frag);
+    tr.append(td1,tdD1,td2,tdD2,td3,tdI,tdPr,tdC,tdP); frag.appendChild(tr); }); tbody.appendChild(frag);
 
   const pins=document.getElementById('filterPins'); pins.innerHTML='';
   const counts = words.map(w=>{ let c=0; (resultRows||[]).forEach(r=>{
@@ -645,7 +772,8 @@ function applyFilter(){
 }
 
 function clearFilter(){
-  document.getElementById('filterInput').value=''; document.getElementById('filterAll').checked=false; const oi=document.getElementById('onlyImpact'); if(oi) oi.checked=false; const ps=document.getElementById('presetSelect'); if(ps) ps.value=''; filteredRows=[]; renderTable(resultRows);
+  document.getElementById('filterInput').value=''; document.getElementById('filterAll').checked=false;
+  document.getElementById('metaA').textContent='Aceita .csv, .xlsx e .xls'; document.getElementById('metaB').textContent='Aceita .csv, .xlsx e .xls'; const oi=document.getElementById('onlyImpact'); if(oi) oi.checked=false; const ps=document.getElementById('presetSelect'); if(ps) ps.value=''; filteredRows=[]; renderTable(resultRows);
   const pill=document.getElementById('pillFiltered'); pill.className='pill info'; pill.textContent='Filtradas: 0';
   document.getElementById('btnExportCSVFiltered').disabled = true; document.getElementById('btnExportXLSXFiltered').disabled = true;
 }
@@ -656,13 +784,15 @@ function clearFilter(){
 function resetApp(){
   rowsA=[]; rowsB=[]; resultRows=[]; filteredRows=[];
   renderTable([]);
+  updateRecommendations([]);
   updatePills({ok:0,missing:0,onlyB:0,total:0,impact:0});
   const pill=document.getElementById('pillFiltered'); pill.className='pill info'; pill.textContent='Filtradas: 0';
   document.getElementById('btnExportCSV').disabled=true; document.getElementById('btnExportXLSX').disabled=true;
   document.getElementById('btnExportCSVFiltered').disabled=true; document.getElementById('btnExportXLSXFiltered').disabled=true;
   [colAOrdem,colATexto,colAData,colBOrdem,colBTexto,colBData].forEach(sel=> sel.innerHTML = sel.innerHTML.split('</option>')[0] + '</option>');
   const fa=document.getElementById('fileA'); const fb=document.getElementById('fileB'); if(fa) fa.value=''; if(fb) fb.value='';
-  document.getElementById('filterInput').value=''; document.getElementById('filterAll').checked=false; const oi=document.getElementById('onlyImpact'); if(oi) oi.checked=false; const ps=document.getElementById('presetSelect'); if(ps) ps.value=''; document.getElementById('filterPins').innerHTML='';
+  document.getElementById('filterInput').value=''; document.getElementById('filterAll').checked=false;
+  document.getElementById('metaA').textContent='Aceita .csv, .xlsx e .xls'; document.getElementById('metaB').textContent='Aceita .csv, .xlsx e .xls'; const oi=document.getElementById('onlyImpact'); if(oi) oi.checked=false; const ps=document.getElementById('presetSelect'); if(ps) ps.value=''; document.getElementById('filterPins').innerHTML='';
   updateXLSXPill();
 }
 
@@ -679,6 +809,7 @@ document.getElementById('btnExportCSVFiltered').addEventListener('click', ()=> e
 document.getElementById('btnExportXLSXFiltered').addEventListener('click', ()=> exportXLSXGeneric(filteredRows,'comparacao_notas_filtrado.xlsx'));
 document.getElementById('btnReset').addEventListener('click', resetApp);
 window.addEventListener('DOMContentLoaded', ()=> {
+  setupDropZones();
   setTimeout(updateXLSXPill, 50);
   const pill=document.getElementById('pillFiltered');
   pill.className='pill info';
